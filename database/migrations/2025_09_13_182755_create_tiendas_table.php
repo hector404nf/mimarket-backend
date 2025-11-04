@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('tiendas', function (Blueprint $table) {
             $table->id('id_tienda');
-            $table->unsignedBigInteger('id_usuario');
+            $table->foreignId('user_id')->constrained('users');
             $table->string('nombre_tienda', 200);
             $table->text('descripcion')->nullable();
             $table->string('logo', 500)->nullable();
@@ -24,10 +24,7 @@ return new class extends Migration
             $table->decimal('calificacion_promedio', 3, 2)->default(0);
             $table->integer('total_productos')->default(0);
             $table->boolean('verificada')->default(false);
-            $table->timestamp('fecha_creacion')->useCurrent();
-            $table->timestamp('fecha_actualizacion')->useCurrent()->useCurrentOnUpdate();
-            
-            $table->foreign('id_usuario')->references('id_usuario')->on('usuarios');
+            $table->timestamps();
         });
     }
 

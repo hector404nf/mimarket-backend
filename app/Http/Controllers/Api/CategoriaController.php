@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\CategoriaResource;
 use App\Models\Categoria;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -37,14 +38,18 @@ class CategoriaController extends Controller
         $query->orderBy($sortBy, $sortOrder);
 
         // Incluir conteo de productos si se solicita
-        if ($request->boolean('with_products_count')) {
-            $query->withCount('productos');
+        if ($request->boolean('with_products_count') || $request->boolean('include_product_count')) {
+            $query->withCount(['productos' => function ($query) {
+                $query->where('activo', true);
+            }]);
         }
 
         $categorias = $query->get();
 
         return response()->json([
-            'data' => $categorias
+            'success' => true,
+            'message' => 'Categorías obtenidas exitosamente',
+            'data' => CategoriaResource::collection($categorias)
         ]);
     }
 
@@ -56,11 +61,18 @@ class CategoriaController extends Controller
         try {
             $validated = $request->validate([
                 'nombre' => 'required|string|max:100|unique:categorias,nombre',
+                'descripcion' => 'nullable|string|max:500',
                 'description' => 'nullable|string|max:500',
                 'icono' => 'nullable|string|max:100',
                 'activo' => 'boolean',
                 'orden' => 'nullable|integer|min:0'
             ]);
+
+            // Mapear descripcion a description si se envió descripcion
+            if (isset($validated['descripcion'])) {
+                $validated['description'] = $validated['descripcion'];
+                unset($validated['descripcion']);
+            }
 
             // Generar slug automáticamente
             $validated['slug'] = Str::slug($validated['nombre']);
@@ -75,12 +87,14 @@ class CategoriaController extends Controller
             $categoria = Categoria::create($validated);
 
             return response()->json([
+                'success' => true,
                 'message' => 'Categoría creada exitosamente',
-                'data' => $categoria
+                'data' => new CategoriaResource($categoria)
             ], 201);
 
         } catch (ValidationException $e) {
             return response()->json([
+                'success' => false,
                 'message' => 'Error de validación',
                 'errors' => $e->errors()
             ], 422);
@@ -96,6 +110,7 @@ class CategoriaController extends Controller
 
         if (!$categoria) {
             return response()->json([
+                'success' => false,
                 'message' => 'Categoría no encontrada'
             ], 404);
         }
@@ -106,7 +121,9 @@ class CategoriaController extends Controller
         }
 
         return response()->json([
-            'data' => $categoria
+            'success' => true,
+            'message' => 'Categoría obtenida exitosamente',
+            'data' => new CategoriaResource($categoria)
         ]);
     }
 
@@ -119,6 +136,7 @@ class CategoriaController extends Controller
 
         if (!$categoria) {
             return response()->json([
+                'success' => false,
                 'message' => 'Categoría no encontrada'
             ], 404);
         }
@@ -126,11 +144,18 @@ class CategoriaController extends Controller
         try {
             $validated = $request->validate([
                 'nombre' => 'sometimes|string|max:100|unique:categorias,nombre,' . $id . ',id_categoria',
+                'descripcion' => 'nullable|string|max:500',
                 'description' => 'nullable|string|max:500',
                 'icono' => 'nullable|string|max:100',
                 'activo' => 'boolean',
                 'orden' => 'nullable|integer|min:0'
             ]);
+
+            // Mapear descripcion a description si se envió descripcion
+            if (isset($validated['descripcion'])) {
+                $validated['description'] = $validated['descripcion'];
+                unset($validated['descripcion']);
+            }
 
             // Actualizar slug si se cambió el nombre
             if (isset($validated['nombre'])) {
@@ -140,12 +165,14 @@ class CategoriaController extends Controller
             $categoria->update($validated);
 
             return response()->json([
+                'success' => true,
                 'message' => 'Categoría actualizada exitosamente',
-                'data' => $categoria
+                'data' => new CategoriaResource($categoria)
             ]);
 
         } catch (ValidationException $e) {
             return response()->json([
+                'success' => false,
                 'message' => 'Error de validación',
                 'errors' => $e->errors()
             ], 422);
@@ -161,6 +188,7 @@ class CategoriaController extends Controller
 
         if (!$categoria) {
             return response()->json([
+                'success' => false,
                 'message' => 'Categoría no encontrada'
             ], 404);
         }
@@ -168,6 +196,7 @@ class CategoriaController extends Controller
         // Verificar si tiene productos asociados
         if ($categoria->productos()->count() > 0) {
             return response()->json([
+                'success' => false,
                 'message' => 'No se puede eliminar la categoría porque tiene productos asociados'
             ], 422);
         }
@@ -175,6 +204,7 @@ class CategoriaController extends Controller
         $categoria->delete();
 
         return response()->json([
+            'success' => true,
             'message' => 'Categoría eliminada exitosamente'
         ]);
     }

@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('productos', function (Blueprint $table) {
             $table->id('id_producto');
             $table->unsignedBigInteger('id_tienda')->nullable();
-            $table->unsignedBigInteger('id_usuario')->nullable();
+            $table->foreignId('user_id')->nullable()->constrained('users');
             $table->unsignedBigInteger('id_categoria');
             $table->string('nombre');
             $table->text('descripcion')->nullable();
@@ -28,12 +28,10 @@ return new class extends Migration
             $table->string('modelo', 100)->nullable();
             $table->string('condicion', 50)->default('nuevo');
             $table->string('tipo_vendedor', 20);
-            $table->timestamp('fecha_publicacion')->useCurrent();
-            $table->timestamp('fecha_actualizacion')->useCurrent()->useCurrentOnUpdate();
             $table->boolean('activo')->default(true);
+            $table->timestamps();
             
             $table->foreign('id_tienda')->references('id_tienda')->on('tiendas');
-            $table->foreign('id_usuario')->references('id_usuario')->on('usuarios');
             $table->foreign('id_categoria')->references('id_categoria')->on('categorias');
         });
     }

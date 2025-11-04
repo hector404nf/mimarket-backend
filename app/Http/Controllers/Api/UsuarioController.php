@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Usuario;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
@@ -16,7 +16,7 @@ class UsuarioController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Usuario::query();
+        $query = User::query();
 
         // Filtros
         if ($request->has('activo')) {
@@ -26,7 +26,7 @@ class UsuarioController extends Controller
         if ($request->has('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
-                $q->where('nombre', 'like', "%{$search}%")
+                $q->where('name', 'like', "%{$search}%")
                   ->orWhere('apellido', 'like', "%{$search}%")
                   ->orWhere('email', 'like', "%{$search}%")
                   ->orWhere('telefono', 'like', "%{$search}%");
@@ -34,7 +34,7 @@ class UsuarioController extends Controller
         }
 
         // Ordenamiento
-        $sortBy = $request->get('sort_by', 'fecha_registro');
+        $sortBy = $request->get('sort_by', 'created_at');
         $sortOrder = $request->get('sort_order', 'desc');
         $query->orderBy($sortBy, $sortOrder);
 
@@ -57,9 +57,9 @@ class UsuarioController extends Controller
     {
         try {
             $validated = $request->validate([
-                'email' => 'required|email|max:255|unique:usuarios,email',
+                'email' => 'required|email|max:255|unique:users,email',
                 'password' => 'required|string|min:8',
-                'nombre' => 'required|string|max:100',
+                'name' => 'required|string|max:100',
                 'apellido' => 'required|string|max:100',
                 'telefono' => 'nullable|string|max:20',
                 'foto_perfil' => 'nullable|string|max:500',
@@ -68,10 +68,8 @@ class UsuarioController extends Controller
 
             // Encriptar contraseña
             $validated['password'] = Hash::make($validated['password']);
-            $validated['fecha_registro'] = now();
-            $validated['fecha_actualizacion'] = now();
 
-            $usuario = Usuario::create($validated);
+            $usuario = User::create($validated);
 
             // Remover password de la respuesta
             $usuario->makeHidden(['password']);
@@ -94,7 +92,7 @@ class UsuarioController extends Controller
      */
     public function show(string $id): JsonResponse
     {
-        $usuario = Usuario::find($id);
+        $usuario = User::find($id);
 
         if (!$usuario) {
             return response()->json([
@@ -105,14 +103,14 @@ class UsuarioController extends Controller
         // Incluir tiendas y productos si se solicita
         if (request()->boolean('with_tiendas')) {
             $usuario->load(['tiendas' => function($query) {
-                $query->orderBy('fecha_creacion', 'desc');
+                $query->orderBy('created_at', 'desc');
             }]);
         }
 
         if (request()->boolean('with_productos')) {
             $usuario->load(['productos' => function($query) {
                 $query->where('activo', true)
-                      ->orderBy('fecha_creacion', 'desc')
+                      ->orderBy('created_at', 'desc')
                       ->limit(10);
             }]);
         }
@@ -127,7 +125,7 @@ class UsuarioController extends Controller
      */
     public function update(Request $request, string $id): JsonResponse
     {
-        $usuario = Usuario::find($id);
+        $usuario = User::find($id);
 
         if (!$usuario) {
             return response()->json([
@@ -137,9 +135,9 @@ class UsuarioController extends Controller
 
         try {
             $validated = $request->validate([
-                'email' => 'sometimes|email|max:255|unique:usuarios,email,' . $id . ',id_usuario',
+                'email' => 'sometimes|email|max:255|unique:users,email,' . $id . ',id',
                 'password' => 'sometimes|string|min:8',
-                'nombre' => 'sometimes|string|max:100',
+                'name' => 'sometimes|string|max:100',
                 'apellido' => 'sometimes|string|max:100',
                 'telefono' => 'nullable|string|max:20',
                 'foto_perfil' => 'nullable|string|max:500',
@@ -151,7 +149,6 @@ class UsuarioController extends Controller
                 $validated['password'] = Hash::make($validated['password']);
             }
 
-            $validated['fecha_actualizacion'] = now();
             $usuario->update($validated);
 
             // Remover password de la respuesta
@@ -175,7 +172,7 @@ class UsuarioController extends Controller
      */
     public function destroy(string $id): JsonResponse
     {
-        $usuario = Usuario::find($id);
+        $usuario = User::find($id);
 
         if (!$usuario) {
             return response()->json([
