@@ -23,7 +23,15 @@ use App\Http\Controllers\Api\MensajeController;
 use App\Http\Controllers\Api\LogActividadController;
 use App\Http\Controllers\Api\ComisionController;
 use App\Http\Controllers\Api\DashboardAdminController;
+use App\Http\Controllers\Api\DashboardTiendaController;
+use App\Http\Controllers\Api\RoutingController;
+use App\Http\Controllers\Api\PushController;
+use App\Http\Controllers\Api\ClienteController;
+use App\Http\Controllers\Api\OrdenTrackingController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\Api\ResenaLikeController;
+use App\Http\Controllers\Api\ResenaRespuestaController;
+use App\Http\Controllers\Api\MetodoPagoController;
 
 /*
 |--------------------------------------------------------------------------
@@ -60,7 +68,12 @@ Route::get('productos/tienda/{tienda}', [ProductoController::class, 'getByTienda
     Route::get('tiendas/{tienda}/productos', [TiendaController::class, 'getProducts']);
     Route::get('tiendas/usuario/{usuario}', [TiendaController::class, 'getByUsuario']);
     Route::post('tiendas/{tienda}/toggle-status', [TiendaController::class, 'toggleStatus']);
-    
+
+    // Routing (público): proxy OSRM
+    Route::get('routing/driving', [RoutingController::class, 'driving']);
+
+    // Push: clave pública VAPID (público)
+    Route::get('push/vapid-public-key', [PushController::class, 'getVapidPublicKey']);
 
 
     
@@ -86,6 +99,15 @@ Route::get('productos/tienda/{tienda}', [ProductoController::class, 'getByTienda
     Route::get('resenas/usuario/{usuario}', [ResenaController::class, 'getByUser']);
     Route::get('resenas/producto/{producto}/stats', [ResenaController::class, 'getProductoStats']);
     Route::patch('resenas/{resena}/verify', [ResenaController::class, 'verify']);
+    // Likes de reseñas
+    Route::get('resenas/{resena}/likes', [ResenaLikeController::class, 'getByResena']);
+    Route::get('resenas/{resena}/likes/check/{usuario}', [ResenaLikeController::class, 'check']);
+    Route::post('resenas/likes/toggle', [ResenaLikeController::class, 'toggle']);
+    // Respuestas de reseñas
+    Route::get('resenas/{resena}/respuestas', [ResenaRespuestaController::class, 'getByResena']);
+    Route::post('resenas/{resena}/respuestas', [ResenaRespuestaController::class, 'store']);
+    Route::patch('resenas/respuestas/{respuesta}', [ResenaRespuestaController::class, 'update']);
+    Route::delete('resenas/respuestas/{respuesta}', [ResenaRespuestaController::class, 'destroy']);
     
     // Rutas para favoritos
     Route::apiResource('favoritos', FavoritoController::class);
@@ -147,6 +169,11 @@ Route::get('productos/tienda/{tienda}', [ProductoController::class, 'getByTienda
     
     // Rutas protegidas que requieren autenticación
     Route::middleware('auth:sanctum')->group(function () {
+        // Push: suscripciones del usuario autenticado
+        Route::get('push/subscriptions', [PushController::class, 'index']);
+        Route::post('push/subscriptions', [PushController::class, 'subscribe']);
+        Route::delete('push/subscriptions', [PushController::class, 'unsubscribe']);
+        Route::post('push/send-test', [PushController::class, 'sendTest']);
         // Rutas para categorías que requieren autenticación
         Route::post('categorias', [CategoriaController::class, 'store']);
         Route::put('categorias/{categoria}', [CategoriaController::class, 'update']);
@@ -171,6 +198,16 @@ Route::get('productos/tienda/{tienda}', [ProductoController::class, 'getByTienda
         Route::get('ordenes/usuario/{usuario}', [OrdenController::class, 'getByUser']);
         Route::get('ordenes/tienda/{tienda}', [OrdenController::class, 'getByTienda']);
         Route::patch('ordenes/{orden}/status', [OrdenController::class, 'updateStatus']);
+
+        // Métodos de pago del usuario (CRUD autenticado)
+        Route::apiResource('metodos-pago', MetodoPagoController::class);
+        Route::get('metodos-pago/usuario/{usuario}', [MetodoPagoController::class, 'getByUser']);
+        Route::patch('metodos-pago/{metodo}/predeterminar', [MetodoPagoController::class, 'setDefault']);
+
+        // Tracking de órdenes (SSE y snapshot)
+        Route::get('ordenes/{orden}/tracking', [OrdenTrackingController::class, 'get']);
+        Route::post('ordenes/{orden}/tracking', [OrdenTrackingController::class, 'upsert']);
+        Route::get('ordenes/{orden}/tracking/stream', [OrdenTrackingController::class, 'stream']);
         
         // Rutas para checkout (requieren autenticación)
         Route::post('checkout/process', [CheckoutController::class, 'processCheckout']);
@@ -180,6 +217,8 @@ Route::get('productos/tienda/{tienda}', [ProductoController::class, 'getByTienda
         Route::post('productos', [ProductoController::class, 'store']);
         Route::put('productos/{producto}', [ProductoController::class, 'update']);
         Route::delete('productos/{producto}', [ProductoController::class, 'destroy']);
+        // Eliminar una imagen específica del producto (galería o principal)
+        Route::delete('productos/{producto}/imagen', [ProductoController::class, 'deleteImage']);
         Route::patch('productos/{producto}/toggle-status', [ProductoController::class, 'toggleStatus']);
         
         // Rutas para tiendas que requieren autenticación
@@ -210,6 +249,10 @@ Route::get('productos/tienda/{tienda}', [ProductoController::class, 'getByTienda
             Route::get('estadisticas', [ComisionController::class, 'getEstadisticasGenerales'])
                 ->middleware('validar.comisiones:administrar');
         });
+
+        // Clientes por tienda (protegido y autorizado: propietario o admin)
+        Route::get('clientes/tienda/{tiendaId}', [ClienteController::class, 'getByTienda'])
+            ->middleware('validar.comisiones:ver');
         
         // Rutas para liquidaciones (requieren autenticación)
         Route::prefix('liquidaciones')->group(function () {
@@ -244,6 +287,10 @@ Route::get('productos/tienda/{tienda}', [ProductoController::class, 'getByTienda
             // Métricas de rendimiento
             Route::get('metricas', [DashboardAdminController::class, 'getMetricasRendimiento']);
         });
+
+        // Analíticas por tienda (propietario o admin)
+        Route::get('analiticas/tienda/{tiendaId}', [DashboardTiendaController::class, 'getAnaliticasTienda'])
+            ->middleware('validar.comisiones:ver');
     });
 });
 

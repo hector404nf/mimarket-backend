@@ -51,7 +51,7 @@ class ComisionController extends Controller
             $tienda = Tienda::findOrFail($tiendaId);
             
             if (Auth::user()->tipo_usuario !== 'administrador' && 
-                Auth::user()->id !== $tienda->id_usuario) {
+                Auth::user()->id !== $tienda->user_id) {
                 return response()->json([
                     'success' => false,
                     'message' => 'No tienes permisos para ver estas comisiones'
@@ -93,7 +93,7 @@ class ComisionController extends Controller
     }
 
     /**
-     * Obtener resumen de comisiones por tienda
+     * Obtener resumen de comisiones por tienda (método legacy)
      */
     public function getResumenComisiones($tiendaId): JsonResponse
     {
@@ -101,14 +101,15 @@ class ComisionController extends Controller
             $tienda = Tienda::findOrFail($tiendaId);
             
             if (Auth::user()->tipo_usuario !== 'administrador' && 
-                Auth::user()->id !== $tienda->id_usuario) {
+                Auth::user()->id !== $tienda->user_id) {
                 return response()->json([
                     'success' => false,
                     'message' => 'No tienes permisos para ver este resumen'
                 ], 403);
             }
 
-            $resumen = $this->comisionService->obtenerResumenComisionesTienda($tiendaId);
+            // Usar la función de servicio correcta
+            $resumen = $this->comisionService->getResumenComisionesTienda($tiendaId);
 
             return response()->json([
                 'success' => true,
@@ -118,6 +119,56 @@ class ComisionController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error al obtener resumen de comisiones: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error interno del servidor'
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtener resumen de comisiones por tienda (coincide con rutas)
+     */
+    public function getResumenComisionesTienda(Request $request, $tiendaId): JsonResponse
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'fecha_inicio' => 'nullable|date',
+                'fecha_fin' => 'nullable|date|after_or_equal:fecha_inicio',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Datos de entrada inválidos',
+                    'errors' => $validator->errors()
+                ], 400);
+            }
+
+            $tienda = Tienda::findOrFail($tiendaId);
+            
+            if (Auth::user()->tipo_usuario !== 'administrador' && 
+                Auth::user()->id !== $tienda->user_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No tienes permisos para ver este resumen'
+                ], 403);
+            }
+
+            $resumen = $this->comisionService->getResumenComisionesTienda(
+                $tiendaId,
+                $request->get('fecha_inicio'),
+                $request->get('fecha_fin')
+            );
+
+            return response()->json([
+                'success' => true,
+                'data' => $resumen,
+                'message' => 'Resumen obtenido exitosamente'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error al obtener resumen de comisiones (tienda): ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Error interno del servidor'
@@ -185,7 +236,7 @@ class ComisionController extends Controller
             $tienda = Tienda::findOrFail($tiendaId);
             
             if (Auth::user()->tipo_usuario !== 'administrador' && 
-                Auth::user()->id !== $tienda->id_usuario) {
+                Auth::user()->id !== $tienda->user_id) {
                 return response()->json([
                     'success' => false,
                     'message' => 'No tienes permisos para ver estas liquidaciones'

@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Resena;
+use App\Models\Producto;
+use App\Models\Notificacion;
+use App\Services\PushNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
@@ -49,6 +52,64 @@ class ResenaController extends Controller
 
             $resena = Resena::create($validated);
             $resena->load(['user', 'producto']);
+
+            // Notificar a la tienda propietaria del producto
+            try {
+                $producto = Producto::with('tienda.user')->find($validated['id_producto']);
+                if ($producto && $producto->tienda && $producto->tienda->user) {
+                    $storeUserId = $producto->tienda->user->id;
+
+                    // Crear notificación en BD
+                    Notificacion::create([
+                        'user_id'   => $storeUserId,
+                        'tipo'      => 'nueva_resena',
+                        'titulo'    => 'Nueva reseña en tu producto',
+                        'mensaje'   => sprintf(
+                            'El usuario %s calificó "%s" con %d estrellas%s',
+                            ($resena->user->name ?? 'Cliente'),
+                            ($producto->nombre ?? 'Producto'),
+                            (int)$resena->calificacion,
+                            $resena->comentario ? (': "' . (strlen($resena->comentario) > 120 ? substr($resena->comentario, 0, 117) . '…' : $resena->comentario) . '"') : ''
+                        ),
+                        'url_accion' => '/productos/' . $producto->id_producto,
+                        'leida'     => false,
+                    ]);
+
+                    // Enviar push al propietario de la tienda
+                    try {
+                        app(PushNotificationService::class)->sendToUser($storeUserId, [
+                            'title' => 'Nueva reseña recibida',
+                            'body'  => ($producto->nombre ?? 'Producto') . ' ahora tiene una nueva reseña',
+                            'url'   => '/productos/' . $producto->id_producto,
+                            'icon'  => '/placeholder-logo.png',
+                        ]);
+                    } catch (\Throwable $e) { /* log opcional */ }
+                }
+            } catch (\Throwable $e) { /* log opcional */ }
+
+            // Notificar al cliente que su reseña fue publicada
+            try {
+                $clientUserId = $resena->user_id;
+                $productName = $resena->producto->nombre ?? 'Producto';
+
+                Notificacion::create([
+                    'user_id'   => $clientUserId,
+                    'tipo'      => 'resena_publicada',
+                    'titulo'    => 'Tu reseña fue publicada',
+                    'mensaje'   => sprintf('Publicaste una reseña de "%s" con %d estrellas.', $productName, (int)$resena->calificacion),
+                    'url_accion'=> '/productos/' . $resena->id_producto,
+                    'leida'     => false,
+                ]);
+
+                try {
+                    app(PushNotificationService::class)->sendToUser($clientUserId, [
+                        'title' => 'Reseña publicada',
+                        'body'  => $productName,
+                        'url'   => '/productos/' . $resena->id_producto,
+                        'icon'  => '/placeholder-user.jpg',
+                    ]);
+                } catch (\Throwable $e) { /* ignore */ }
+            } catch (\Throwable $e) { /* ignore */ }
 
             return response()->json($resena, 201);
         } catch (ValidationException $e) {

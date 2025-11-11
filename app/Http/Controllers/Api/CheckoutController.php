@@ -12,6 +12,7 @@ use App\Models\UsoCupon;
 use App\Models\DireccionEnvio;
 use App\Models\OrdenEnvio;
 use App\Models\Notificacion;
+use App\Models\MetodoPago;
 use App\Services\ComisionService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -38,7 +39,9 @@ class CheckoutController extends Controller
                 'latitud' => 'nullable|numeric',
                 'longitud' => 'nullable|numeric',
                 'notas' => 'nullable|string',
-                'codigo_cupon' => 'nullable|string|exists:cupones,codigo'
+                'codigo_cupon' => 'nullable|string|exists:cupones,codigo',
+                // Método de pago guardado opcional
+                'id_metodo_pago' => 'nullable|integer|exists:metodos_pago,id_metodo'
             ]);
 
             $user = auth()->user();
@@ -127,6 +130,23 @@ class CheckoutController extends Controller
                                                ->first();
                 }
 
+                // Validar método de pago guardado si se envía
+                $metodoPagoGuardado = null;
+                if (!empty($validated['id_metodo_pago'])) {
+                    $metodoPagoGuardado = MetodoPago::where('id_metodo', $validated['id_metodo_pago'])
+                        ->where('user_id', $user->id)
+                        ->where('activo', true)
+                        ->first();
+
+                    if (!$metodoPagoGuardado) {
+                        throw new \Exception('Método de pago no válido para el usuario');
+                    }
+
+                    if ($metodoPagoGuardado->tipo !== $validated['metodo_pago']) {
+                        throw new \Exception('El tipo de método de pago no coincide');
+                    }
+                }
+
                 // Crear la orden
                 $orden = Orden::create([
                     'user_id' => $user->id,
@@ -136,6 +156,7 @@ class CheckoutController extends Controller
                     'impuestos' => $impuestos,
                     'costo_envio' => $costo_envio,
                     'estado' => 'pendiente',
+                    'id_metodo_pago' => $metodoPagoGuardado?->id_metodo,
                     'metodo_pago' => $validated['metodo_pago'],
                     'estado_pago' => 'pendiente',
                     'notas' => $validated['notas'] ?? null
@@ -362,6 +383,16 @@ class CheckoutController extends Controller
                         'url_accion' => "/dashboard-tienda/pedidos/{$orden->id_orden}",
                         'leida' => false
                     ]);
+
+                    // Enviar push al propietario de la tienda
+                    try {
+                        app(\App\Services\PushNotificationService::class)->sendToUser($tienda->user->id, [
+                            'title' => 'Nuevo pedido recibido',
+                            'body' => "Pedido #{$orden->numero_orden} - Total " . number_format($totalMonto, 0) . " Gs.",
+                            'url' => "/dashboard-tienda/pedidos/{$orden->id_orden}",
+                            'icon' => '/placeholder-logo.png',
+                        ]);
+                    } catch (\Exception $e) { /* log opcional */ }
                 }
             }
             
@@ -374,6 +405,16 @@ class CheckoutController extends Controller
                 'url_accion' => "/pedidos/{$orden->id_orden}",
                 'leida' => false
             ]);
+
+            // Enviar push al cliente
+            try {
+                app(\App\Services\PushNotificationService::class)->sendToUser($orden->user_id, [
+                    'title' => 'Pedido confirmado',
+                    'body' => "Pedido #{$orden->numero_orden} confirmado. Total: " . number_format($orden->total, 0) . " Gs.",
+                    'url' => "/pedidos/{$orden->id_orden}",
+                    'icon' => '/placeholder-logo.png',
+                ]);
+            } catch (\Exception $e) { /* log opcional */ }
             
         } catch (\Exception $e) {
             // Log del error pero no interrumpir el proceso de checkout

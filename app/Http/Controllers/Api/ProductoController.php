@@ -27,6 +27,17 @@ class ProductoController extends Controller
             $query->where('id_tienda', $request->tienda);
         }
 
+        // Filtro por tipo de venta (tipo_vendedor)
+        // Acepta un valor simple (e.g., "directa") o una lista separada por comas (e.g., "directa,pedido")
+        if ($request->has('tipo_vendedor')) {
+            $tipos = $request->get('tipo_vendedor');
+            $valores = is_array($tipos) ? $tipos : explode(',', (string) $tipos);
+            $valores = array_filter(array_map('trim', $valores));
+            if (!empty($valores)) {
+                $query->whereIn('tipo_vendedor', $valores);
+            }
+        }
+
         if ($request->has('precio_min')) {
             $query->where('precio', '>=', $request->precio_min);
         }
@@ -74,6 +85,16 @@ class ProductoController extends Controller
         $query = Producto::with(['categoria', 'tienda', 'usuario'])
             ->where('id_tienda', $tiendaId)
             ->where('activo', true);
+
+        // Filtro por tipo de venta (tipo_vendedor)
+        $tipos = $request->get('tipo_vendedor');
+        if (!empty($tipos)) {
+            $valores = is_array($tipos) ? $tipos : explode(',', (string) $tipos);
+            $valores = array_filter(array_map('trim', $valores));
+            if (!empty($valores)) {
+                $query->whereIn('tipo_vendedor', $valores);
+            }
+        }
 
         // Buscar/search filter (support both 'search' and 'buscar')
         $search = $request->get('search', $request->get('buscar'));

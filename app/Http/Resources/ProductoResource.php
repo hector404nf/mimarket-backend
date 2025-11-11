@@ -28,6 +28,8 @@ class ProductoResource extends JsonResource
             'sku' => $this->sku ?? '',
             'peso' => $this->peso,
             'dimensiones' => $this->dimensiones,
+            // Tipo de venta
+            'tipo_vendedor' => $this->tipo_vendedor,
             'activo' => $this->activo,
             'destacado' => $this->destacado,
             'calificacion_promedio' => $this->calificacion_promedio ?? 0,
@@ -38,6 +40,7 @@ class ProductoResource extends JsonResource
             // URLs de imágenes usando Spatie Media Library
             'imagen_principal' => $this->main_image_url,
             'imagen_principal_thumb' => $this->main_image_thumb_url,
+            'imagen_principal_media_id' => $this->main_image_media_id,
             'imagenes_adicionales' => $this->gallery_images,
             
             // Relaciones

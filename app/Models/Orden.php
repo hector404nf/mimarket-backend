@@ -23,6 +23,7 @@ class Orden extends Model
         'impuestos',
         'costo_envio',
         'direccion_envio',
+        'id_metodo_pago',
         'comision_total',
         'comisiones_calculadas',
         'fecha_calculo_comisiones',

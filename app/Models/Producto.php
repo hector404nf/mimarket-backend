@@ -130,6 +130,15 @@ class Producto extends Model implements HasMedia
     }
 
     /**
+     * Get the main image media ID
+     */
+    public function getMainImageMediaIdAttribute(): ?int
+    {
+        $media = $this->getFirstMedia('images');
+        return $media ? $media->id : null;
+    }
+
+    /**
      * Get all gallery images
      */
     public function getGalleryImagesAttribute(): array
