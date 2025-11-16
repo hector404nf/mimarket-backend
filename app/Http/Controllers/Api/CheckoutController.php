@@ -18,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class CheckoutController extends Controller
@@ -70,7 +71,7 @@ class CheckoutController extends Controller
                 }
             }
 
-            return DB::transaction(function () use ($validated, $user, $itemsCarrito) {
+            return DB::transaction(function () use ($validated, $user, $itemsCarrito, $request) {
                 // Calcular totales
                 $subtotal = 0;
                 foreach ($itemsCarrito as $item) {
@@ -161,6 +162,17 @@ class CheckoutController extends Controller
                     'estado_pago' => 'pendiente',
                     'notas' => $validated['notas'] ?? null
                 ]);
+
+                if ($validated['metodo_pago'] === 'transferencia') {
+                    if (!$request->hasFile('comprobante_transferencia')) {
+                        throw new \Exception('Se requiere el comprobante de transferencia');
+                    }
+                    $file = $request->file('comprobante_transferencia');
+                    $filename = uniqid('comp_') . '.' . $file->getClientOriginalExtension();
+                    $path = $file->storeAs('ordenes/' . $orden->id_orden . '/comprobantes', $filename, 'public');
+                    $url = Storage::url($path);
+                    $orden->update(['comprobante_transferencia_url' => $url]);
+                }
 
                 // Crear snapshot de dirección en tabla relacionada
                 if ($direccion) {

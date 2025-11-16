@@ -30,6 +30,10 @@ class Tienda extends Model
         'sitio_web',
         'latitud',
         'longitud',
+        'banco_nombre',
+        'banco_cuenta',
+        'banco_titular',
+        'banco_tipo',
         'calificacion_promedio',
         'total_productos',
         'verificada',
@@ -39,6 +43,7 @@ class Tienda extends Model
         'notificacion_vencimiento_enviada',
         'dias_gracia_restantes',
         'configuracion_plan',
+        'configuracion_tienda',
         'fecha_ultima_facturacion',
         'ingresos_mes_actual',
         'comisiones_pendientes'
@@ -55,6 +60,7 @@ class Tienda extends Model
         'fecha_vencimiento_plan' => 'date',
         'notificacion_vencimiento_enviada' => 'boolean',
         'configuracion_plan' => 'array',
+        'configuracion_tienda' => 'array',
         'fecha_ultima_facturacion' => 'date',
         'ingresos_mes_actual' => 'decimal:2',
         'comisiones_pendientes' => 'decimal:2'
@@ -84,6 +90,21 @@ class Tienda extends Model
     public function productos(): HasMany
     {
         return $this->hasMany(Producto::class, 'id_tienda', 'id_tienda');
+    }
+
+    public function horarios()
+    {
+        return $this->hasMany(HorarioTienda::class, 'id_tienda', 'id_tienda');
+    }
+
+    public function zonasDelivery()
+    {
+        return $this->hasMany(DireccionEnvioTienda::class, 'id_tienda', 'id_tienda');
+    }
+
+    public function metodosPago()
+    {
+        return $this->hasMany(TiendaMetodoPago::class, 'id_tienda', 'id_tienda');
     }
 
     /**
@@ -142,7 +163,7 @@ class Tienda extends Model
      */
     public function tieneSuscripcionActiva(): bool
     {
-        return $this->estado_suscripcion === 'activa' && 
+        return $this->estado_suscripcion === 'activa' &&
                $this->fecha_vencimiento_plan >= now()->toDateString();
     }
 
@@ -151,7 +172,7 @@ class Tienda extends Model
      */
     public function estaEnPeriodoGracia(): bool
     {
-        return $this->estado_suscripcion === 'gracia' && 
+        return $this->estado_suscripcion === 'gracia' &&
                $this->dias_gracia_restantes > 0;
     }
 

@@ -32,6 +32,9 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\Api\ResenaLikeController;
 use App\Http\Controllers\Api\ResenaRespuestaController;
 use App\Http\Controllers\Api\MetodoPagoController;
+use App\Http\Controllers\Api\HorarioTiendaController;
+use App\Http\Controllers\Api\DireccionEnvioTiendaController;
+use App\Http\Controllers\Api\TiendaMetodoPagoController;
 
 /*
 |--------------------------------------------------------------------------
@@ -56,11 +59,15 @@ Route::get('test', function() {
     return response()->json(['message' => 'API funcionando']);
 });
 
-// Rutas para productos (solo lectura pública)
-Route::get('productos', [ProductoController::class, 'index']);
-Route::get('productos/{producto}', [ProductoController::class, 'show']);
-Route::get('productos/categoria/{categoria}', [ProductoController::class, 'getByCategoria']);
-Route::get('productos/tienda/{tienda}', [ProductoController::class, 'getByTienda']);
+    // Rutas para productos (solo lectura pública)
+    Route::get('productos', [ProductoController::class, 'index']);
+    Route::get('productos/{producto}', [ProductoController::class, 'show']);
+    Route::get('productos/categoria/{categoria}', [ProductoController::class, 'getByCategoria']);
+    Route::get('productos/tienda/{tienda}', [ProductoController::class, 'getByTienda']);
+    
+    // Reseñas agregadas por tienda (lectura pública)
+    Route::get('resenas/tienda/{tiendaId}', [ResenaController::class, 'getByTienda']);
+    Route::get('resenas/tienda/{tiendaId}/stats', [ResenaController::class, 'getTiendaStats']);
     
     // Rutas para tiendas (solo lectura pública)
     Route::get('tiendas', [TiendaController::class, 'index']);
@@ -226,6 +233,13 @@ Route::get('productos/tienda/{tienda}', [ProductoController::class, 'getByTienda
         Route::put('tiendas/{tienda}', [TiendaController::class, 'update']);
         Route::delete('tiendas/{tienda}', [TiendaController::class, 'destroy']);
         Route::patch('tiendas/{tienda}/deactivate', [TiendaController::class, 'deactivate']);
+
+        Route::get('tiendas/{tienda}/horarios', [HorarioTiendaController::class, 'index']);
+        Route::put('tiendas/{tienda}/horarios', [HorarioTiendaController::class, 'bulkUpdate']);
+        Route::get('tiendas/{tienda}/zonas-delivery', [DireccionEnvioTiendaController::class, 'index']);
+        Route::put('tiendas/{tienda}/zonas-delivery', [DireccionEnvioTiendaController::class, 'bulkReplace']);
+        Route::get('tiendas/{tienda}/metodos-pago', [TiendaMetodoPagoController::class, 'index']);
+        Route::put('tiendas/{tienda}/metodos-pago', [TiendaMetodoPagoController::class, 'setAccepted']);
         
         // Ruta para configurar perfil (requiere autenticación)
         Route::post('perfil/setup', [PerfilController::class, 'createOrUpdateProfile']);

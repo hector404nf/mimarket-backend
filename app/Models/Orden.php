@@ -24,6 +24,7 @@ class Orden extends Model
         'costo_envio',
         'direccion_envio',
         'id_metodo_pago',
+        'comprobante_transferencia_url',
         'comision_total',
         'comisiones_calculadas',
         'fecha_calculo_comisiones',

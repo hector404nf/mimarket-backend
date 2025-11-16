@@ -203,4 +203,35 @@ class ResenaController extends Controller
 
         return response()->json($resena);
     }
+
+    public function getByTienda($tiendaId): JsonResponse
+    {
+        $resenas = Resena::whereHas('producto', function ($q) use ($tiendaId) {
+                            $q->where('id_tienda', $tiendaId);
+                        })
+                        ->with(['user', 'producto'])
+                        ->orderBy('created_at', 'desc')
+                        ->get();
+
+        return response()->json($resenas);
+    }
+
+    public function getTiendaStats($tiendaId): JsonResponse
+    {
+        $stats = Resena::whereHas('producto', function ($q) use ($tiendaId) {
+                            $q->where('id_tienda', $tiendaId);
+                        })
+                        ->selectRaw('
+                            COUNT(*) as total_resenas,
+                            AVG(calificacion) as promedio_calificacion,
+                            COUNT(CASE WHEN calificacion = 5 THEN 1 END) as cinco_estrellas,
+                            COUNT(CASE WHEN calificacion = 4 THEN 1 END) as cuatro_estrellas,
+                            COUNT(CASE WHEN calificacion = 3 THEN 1 END) as tres_estrellas,
+                            COUNT(CASE WHEN calificacion = 2 THEN 1 END) as dos_estrellas,
+                            COUNT(CASE WHEN calificacion = 1 THEN 1 END) as una_estrella
+                        ')
+                        ->first();
+
+        return response()->json($stats);
+    }
 }

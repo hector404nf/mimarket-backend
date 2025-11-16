@@ -7,6 +7,7 @@ use App\Models\Tienda;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Storage;
 
 class TiendaController extends Controller
 {
@@ -49,9 +50,11 @@ class TiendaController extends Controller
             $query->where('direccion', 'like', '%' . $request->ciudad . '%');
         }
 
-        // Ordenamiento
-        $sortBy = $request->get('sort_by', 'fecha_creacion');
-        $sortOrder = $request->get('sort_order', 'desc');
+        // Ordenamiento seguro
+        $sortByReq = $request->get('sort_by', 'id_tienda');
+        $allowedSortBy = ['id_tienda', 'nombre_tienda', 'calificacion_promedio', 'total_productos'];
+        $sortBy = in_array($sortByReq, $allowedSortBy) ? $sortByReq : 'id_tienda';
+        $sortOrder = strtolower($request->get('sort_order', 'desc')) === 'asc' ? 'asc' : 'desc';
         $query->orderBy($sortBy, $sortOrder);
 
         // Incluir conteo de productos si se solicita
@@ -80,32 +83,51 @@ class TiendaController extends Controller
         }
 
         try {
-            $validated = $request->validate([
+            $rules = [
                 'nombre_tienda' => 'required|string|max:255|unique:tiendas,nombre_tienda',
                 'descripcion' => 'nullable|string|max:1000',
                 'categoria_principal' => 'nullable|string|max:255',
-                'logo' => 'nullable|string|max:500',
-                'banner' => 'nullable|string|max:500',
                 'direccion' => 'nullable|string|max:500',
                 'telefono_contacto' => 'nullable|string|max:20',
                 'email_contacto' => 'nullable|email|max:255',
                 'sitio_web' => 'nullable|url|max:500',
                 'latitud' => 'nullable|numeric|between:-90,90',
                 'longitud' => 'nullable|numeric|between:-180,180',
+                'configuracion_tienda' => 'nullable|array',
                 'verificada' => 'boolean'
-            ]);
+            ];
+            if ($request->hasFile('logo')) {
+                $rules['logo'] = 'image|mimes:jpeg,png,jpg,gif,webp|max:4096';
+            } elseif ($request->filled('logo')) {
+                $rules['logo'] = 'string|max:500';
+            }
+            if ($request->hasFile('banner')) {
+                $rules['banner'] = 'image|mimes:jpeg,png,jpg,gif,webp|max:4096';
+            } elseif ($request->filled('banner')) {
+                $rules['banner'] = 'string|max:500';
+            }
+            $validated = $request->validate($rules);
 
             // Agregar el user_id del usuario autenticado
             $validated['user_id'] = auth()->id();
             $validated['calificacion_promedio'] = 0;
             $validated['total_productos'] = 0;
-            
+
             // Establecer verificada como true por defecto si no se especifica
             if (!isset($validated['verificada'])) {
                 $validated['verificada'] = true;
             }
 
             $tienda = Tienda::create($validated);
+            if ($request->hasFile('logo')) {
+                $logoPath = $request->file('logo')->store('tiendas/' . $tienda->id_tienda . '/logo', 'public');
+                $tienda->logo = '/storage/' . $logoPath;
+            }
+            if ($request->hasFile('banner')) {
+                $bannerPath = $request->file('banner')->store('tiendas/' . $tienda->id_tienda . '/banner', 'public');
+                $tienda->banner = '/storage/' . $bannerPath;
+            }
+            $tienda->save();
             $tienda->load(['user']);
 
             return response()->json([
@@ -127,7 +149,12 @@ class TiendaController extends Controller
      */
     public function show(string $id): JsonResponse
     {
-        $tienda = Tienda::with(['user'])->find($id);
+        $tienda = Tienda::with([
+            'user',
+            'horarios' => function($query) {
+                $query->orderBy('dia_semana');
+            }
+        ])->find($id);
 
         if (!$tienda || !$tienda->verificada) {
             return response()->json([
@@ -170,22 +197,50 @@ class TiendaController extends Controller
         }
 
         try {
-            $validated = $request->validate([
+            $rules = [
                 'nombre_tienda' => 'sometimes|string|max:255|unique:tiendas,nombre_tienda,' . $id . ',id_tienda',
                 'descripcion' => 'nullable|string|max:1000',
                 'categoria_principal' => 'nullable|string|max:255',
-                'logo' => 'nullable|string|max:500',
-                'banner' => 'nullable|string|max:500',
                 'direccion' => 'nullable|string|max:500',
                 'telefono_contacto' => 'nullable|string|max:20',
                 'email_contacto' => 'nullable|email|max:255',
                 'sitio_web' => 'nullable|url|max:500',
                 'latitud' => 'nullable|numeric|between:-90,90',
                 'longitud' => 'nullable|numeric|between:-180,180',
+                'banco_nombre' => 'nullable|string|max:255',
+                'banco_cuenta' => 'nullable|string|max:255',
+                'banco_titular' => 'nullable|string|max:255',
+                'banco_tipo' => 'nullable|string|max:255',
+                'configuracion_tienda' => 'nullable|array',
                 'verificada' => 'boolean'
-            ]);
+            ];
+            if ($request->hasFile('logo')) {
+                $rules['logo'] = 'image|mimes:jpeg,png,jpg,gif,webp|max:4096';
+            } elseif ($request->filled('logo')) {
+                $rules['logo'] = 'string|max:500';
+            }
+            if ($request->hasFile('banner')) {
+                $rules['banner'] = 'image|mimes:jpeg,png,jpg,gif,webp|max:4096';
+            } elseif ($request->filled('banner')) {
+                $rules['banner'] = 'string|max:500';
+            }
+            $validated = $request->validate($rules);
 
-            $tienda->update($validated);
+            $data = $request->except(['logo', 'banner']);
+            if ($request->hasFile('logo')) {
+                $logoPath = $request->file('logo')->store('tiendas/' . $tienda->id_tienda . '/logo', 'public');
+                $data['logo'] = '/storage/' . $logoPath;
+            } elseif ($request->filled('logo')) {
+                $data['logo'] = $request->get('logo');
+            }
+            if ($request->hasFile('banner')) {
+                $bannerPath = $request->file('banner')->store('tiendas/' . $tienda->id_tienda . '/banner', 'public');
+                $data['banner'] = '/storage/' . $bannerPath;
+            } elseif ($request->filled('banner')) {
+                $data['banner'] = $request->get('banner');
+            }
+
+            $tienda->update($data);
             $tienda->load(['user']);
 
             return response()->json([
